@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b3c5d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Charales</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root{
+    --bg:#0b3c5d; --bg2:#0e5a82; --ink:#ffffff; --soft:#bfe3f5;
+    --accent:#ffc93c; --accent-ink:#3a2a00; --good:#19a35b; --pass:#e8590c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    user-select:none;-webkit-user-select:none;touch-action:manipulation}
+  button{font:inherit;color:inherit;border:0;cursor:pointer}
+  .screen{position:fixed;inset:0;display:none}
+  .screen.on{display:flex}
+
+  /* ---------- Menú ---------- */
+  #menu{flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;
+    background:radial-gradient(circle at 50% 20%,var(--bg2),var(--bg) 70%)}
+  .logo{text-align:center}
+  .logo .fish{font-size:64px;line-height:1;display:inline-block;animation:swim 2.4s ease-in-out infinite}
+  @keyframes swim{0%,100%{transform:translateX(-8px) rotate(-4deg)}50%{transform:translateX(8px) rotate(4deg)}}
+  .logo h1{margin:6px 0 0;font-size:clamp(44px,13vmin,84px);letter-spacing:-1px;font-weight:900}
+  .logo p{margin:4px 0 0;color:var(--soft);font-size:16px}
+  .row{display:flex;gap:12px;width:min(420px,100%)}
+  .small{flex:1;background:rgba(255,255,255,.13);border-radius:16px;padding:14px 10px;font-size:17px;font-weight:700}
+  .small:active,.big:active{transform:scale(.97)}
+  .big{width:min(420px,100%);background:var(--accent);color:var(--accent-ink);border-radius:22px;
+    padding:24px 10px;font-size:34px;font-weight:900;box-shadow:0 6px 0 #c9971a}
+  @media (orientation:landscape) and (max-height:480px){
+    #menu{flex-direction:row;flex-wrap:wrap;gap:16px 28px}
+    .logo .fish{font-size:44px}
+    .menu-btns{display:flex;flex-direction:column;gap:14px;width:min(380px,48%)}
+    .menu-btns .row,.menu-btns .big{width:100%}
+  }
+  .menu-btns{display:flex;flex-direction:column;gap:18px;align-items:center;width:100%}
+
+  /* ---------- Cómo jugar ---------- */
+  #how{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:18px;z-index:20}
+  #how.on{display:flex}
+  .card{background:#fff;color:#12303f;border-radius:22px;padding:22px;width:min(460px,100%);max-height:100%;overflow:auto}
+  .card h2{margin:0 0 12px;font-size:24px}
+  .card ol{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+  .card li{display:flex;gap:12px;align-items:center;font-size:17px;line-height:1.3}
+  .card li span:first-child{font-size:28px;width:36px;text-align:center;flex:none}
+  .card button{margin-top:16px;width:100%;background:var(--bg);color:#fff;border-radius:14px;padding:14px;font-size:18px;font-weight:800}
+
+  /* ---------- Juego (siempre horizontal) ---------- */
+  #game{background:var(--bg);align-items:center;justify-content:center;transition:background .15s}
+  #game.good{background:var(--good)}
+  #game.pass{background:var(--pass)}
+  #game.end{background:#7a1f1f}
+  @media (orientation:portrait){
+    /* si el celular no giró la pantalla, la giramos nosotros */
+    #game{inset:auto;top:0;left:0;width:100vh;height:100vw;transform-origin:top left;
+      transform:translateX(100vw) rotate(90deg)}
+  }
+  #barWrap{position:absolute;top:0;left:0;right:0;height:14px;background:rgba(0,0,0,.28)}
+  #bar{height:100%;width:100%;background:var(--accent);transform-origin:left center}
+  #bar.low{background:#ff5a4f}
+  #wordBox{position:absolute;inset:14px 0 0 0;display:flex;align-items:center;justify-content:center;padding:4%}
+  #word{font-weight:900;text-align:center;line-height:1.05;text-wrap:balance;overflow-wrap:anywhere}
+  #hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:14px;color:rgba(255,255,255,.65)}
+  #quit{position:absolute;top:22px;left:10px;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.25);font-size:18px}
+  .tap{position:absolute;top:14px;bottom:0;width:50%;background:transparent;display:none}
+  #tapPass{left:0}#tapGood{right:0}
+  #game.touch .tap{display:block}
+
+  /* ---------- Resultados ---------- */
+  #results{flex-direction:column;align-items:center;padding:20px 18px;gap:12px;background:var(--bg)}
+  #results h2{margin:0;font-size:22px;color:var(--soft);font-weight:700}
+  #score{font-size:64px;font-weight:900;line-height:1}
+  #score small{font-size:20px;color:var(--soft);font-weight:700}
+  #list{flex:1;min-height:0;overflow:auto;width:min(520px,100%);display:grid;gap:8px;align-content:start;
+    grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+  .it{display:flex;gap:10px;align-items:center;padding:11px 14px;border-radius:12px;font-size:18px;font-weight:700}
+  .it.g{background:rgba(25,163,91,.9)}
+  .it.p{background:rgba(255,255,255,.1);color:#d6e6ee;text-decoration:line-through;text-decoration-color:rgba(255,255,255,.45)}
+  .it b{flex:none;width:22px;text-align:center;text-decoration:none;display:inline-block}
+  .rbtns{display:flex;gap:10px;width:min(520px,100%)}
+  .rbtns .big{font-size:22px;padding:16px 8px;flex:2;box-shadow:0 4px 0 #c9971a}
+  .rbtns .small{flex:1}
+</style>
+</head>
+<body>
+
+<!-- MENÚ -->
+<section id="menu" class="screen on">
+  <div class="logo">
+    <div class="fish">🐟</div>
+    <h1>Charales</h1>
+    <p data-t="tagline"></p>
+  </div>
+  <div class="menu-btns">
+    <div class="row">
+      <button class="small" id="btnLang"></button>
+      <button class="small" id="btnHow" data-t="how"></button>
+    </div>
+    <button class="big" id="btnPlay" data-t="play"></button>
+  </div>
+</section>
+
+<!-- CÓMO JUGAR -->
+<div id="how">
+  <div class="card">
+    <h2 data-t="how"></h2>
+    <ol id="howList"></ol>
+    <button id="btnHowOk" data-t="ok"></button>
+  </div>
+</div>
+
+<!-- JUEGO -->
+<section id="game" class="screen">
+  <div id="barWrap"><div id="bar"></div></div>
+  <div id="wordBox"><div id="word"></div></div>
+  <button class="tap" id="tapPass" aria-label="pass"></button>
+  <button class="tap" id="tapGood" aria-label="correct"></button>
+  <div id="hint"></div>
+  <button id="quit" aria-label="salir">✕</button>
+</section>
+
+<!-- RESULTADOS -->
+<section id="results" class="screen">
+  <h2 data-t="timeup"></h2>
+  <div id="score"></div>
+  <div id="list"></div>
+  <div class="rbtns">
+    <button class="small" id="btnMenu" data-t="menu"></button>
+    <button class="big" id="btnAgain" data-t="again"></button>
+  </div>
+</section>
+
+<script>
+/* =====================================================
+   TEXTOS
+   ===================================================== */
+const T = {
+  es:{
+    tagline:"Charadas en la frente", play:"JUGAR", how:"Cómo jugar", ok:"¡Entendido!",
+    langBtn:"🇲🇽 MX", place:"Ponte el celular\nen la frente", good:"¡BIEN!", pass:"PASO",
+    timeup:"¡Se acabó el tiempo!", again:"Otra vez", menu:"Menú", pts:"aciertos",
+    tapHint:"Sin sensor: toca derecha = bien · izquierda = paso",
+    steps:[["📱","Pon el celular acostado en tu frente, con la pantalla hacia tus amigos."],
+           ["🗣️","Ellos te dan pistas o actúan la palabra. ¡Sin decirla!"],
+           ["⬆️","¿Adivinaste? Inclina el celular hacia ARRIBA."],
+           ["⬇️","¿No sabes? Inclínalo hacia ABAJO para pasar."],
+           ["⏱️","Tienes 1 minuto. La barra de arriba es el tiempo."]]
+  },
+  en:{
+    tagline:"Charades on your forehead", play:"PLAY", how:"How to play", ok:"Got it!",
+    langBtn:"🇺🇸 US", place:"Put the phone\non your forehead", good:"CORRECT!", pass:"PASS",
+    timeup:"Time's up!", again:"Play again", menu:"Menu", pts:"correct",
+    tapHint:"No sensor: tap right = correct · left = pass",
+    steps:[["📱","Hold the phone sideways on your forehead, screen facing your friends."],
+           ["🗣️","They give clues or act the word out. No saying it!"],
+           ["⬆️","Got it? Tilt the phone UP."],
+           ["⬇️","No idea? Tilt it DOWN to pass."],
+           ["⏱️","You have 1 minute. The bar on top is the time."]]
+  }
+};
+
+/* =====================================================
+   PALABRAS
+   ===================================================== */
+const WORDS = {
+es:`Perro|Gato|Elefante|Jirafa|Mono|Gorila|León|Tigre|Canguro|Pingüino|Cocodrilo|Serpiente|Tortuga|Conejo|Caballo|Vaca|Cerdo|Gallina|Gallo|Pato|Burro|Oveja|Cabra|Ratón|Murciélago|Búho|Águila|Loro|Tiburón|Delfín|Ballena|Pulpo|Cangrejo|Medusa|Rana|Sapo|Mosquito|Abeja|Mariposa|Araña|Hormiga|Cucaracha|Alacrán|Camello|Oso|Oso panda|Koala|Zorrillo|Ardilla|Lobo|Zorro|Venado|Rinoceronte|Hipopótamo|Cebra|Avestruz|Flamenco|Pavo real|Guajolote|Camaleón|Iguana|Dinosaurio|Tiranosaurio|Unicornio|Dragón|Caracol|Gusano|Chapulín|Luciérnaga|Colibrí|Foca|Morsa|Perezoso|Armadillo|Tlacuache|Xoloitzcuintle|Chihuahua|Ajolote|Jaguar|Quetzal|Coyote|Zopilote|Pez globo|Caballito de mar|Estrella de mar|Toro|Puercoespín|Castor|Nutria|Topo|Hámster|Pájaro carpintero|Paloma|Cisne|Pelícano|Tucán|Mapache|Hiena|Chita|Llama|Orangután|
+Bailar|Cantar|Nadar|Correr|Saltar|Dormir|Roncar|Llorar|Reír|Estornudar|Toser|Bostezar|Cocinar|Planchar|Barrer|Trapear|Lavar los trastes|Lavar la ropa|Tender la cama|Bañarse|Cepillarse los dientes|Peinarse|Maquillarse|Afeitarse|Vestirse|Manejar|Andar en bicicleta|Patinar|Esquiar|Surfear|Pescar|Cazar|Escalar|Bucear|Remar|Boxear|Tomar una selfie|Textear|Hablar por teléfono|Ver la tele|Jugar videojuegos|Leer|Escribir|Pintar|Dibujar|Tocar guitarra|Tocar batería|Tocar piano|Tocar trompeta|Tocar violín|Aplaudir|Chiflar|Guiñar el ojo|Abrazar|Besar|Coquetear|Pelear|Rezar|Meditar|Hacer yoga|Hacer lagartijas|Hacer sentadillas|Levantar pesas|Saltar la cuerda|Jugar al escondite|Volar un papalote|Pasear al perro|Cambiar un pañal|Arrullar a un bebé|Cortar el pasto|Regar las plantas|Cambiar un foco|Martillar|Serruchar|Tejer|Coser|Ordeñar una vaca|Montar a caballo|Torear|Hacer fila|Pedir aventón|Parar un taxi|Subir al camión|Hacer la ola|Echar tortillas|Hacer palomitas|Pelar un plátano|Comer espagueti|Comer un taco|Comer sopa caliente|Enchilarse|Tomar tequila|Brindar|Emborracharse|Tener cruda|Tener hipo|Tener frío|Tener calor|Tener miedo|Estar enamorado|Estar enojado|Desmayarse|Tropezarse|Resbalarse|Caminar en la cuerda floja|Hacer malabares|Hacer magia|Hipnotizar|Caminar como modelo|Caminar como zombi|Caminar en la luna|Moonwalk|Twerking|Bailar salsa|Bailar cumbia|Bailar ballet|Bailar tango|Bailar reguetón|Bailar el Payaso de Rodeo|Zapatear|Romper una piñata|Cantar Las Mañanitas|Soplar las velas|Envolver un regalo|Tomar una foto|Lanzar un beso|Pedir matrimonio|Tirarse un clavado|Tirarse en paracaídas|Echarse un clavado de panza|Meter un gol|Hacer una chilena|Tirar un penal|Encestar|Batear|Jugar boliche|Jugar billar|Jugar golf|Jugar tenis|Jugar ping pong|Jugar voleibol|Jugar a las canicas|Bailar el trompo|Jugar yoyo|Jugar lotería|Jugar dominó|Jugar póker|Echar un volado|Estacionarse|Ponchar una llanta|Cargar gasolina|Tocar el claxon|Sacar la basura|Matar una mosca|Rascarse|Hacerse el dormido|Hacer berrinche|Chismear|Espiar|Robar|Esconderse|Rendirse|Hacer cosquillas|Sonarse la nariz|Hacer gárgaras|Morderse las uñas|Tronarse los dedos|Estirarse|Despertar|Apagar el despertador|Llegar tarde|Hacer la tarea|Copiar en un examen|Levantar la mano|Dar un discurso|Contar dinero|Pagar con tarjeta|Regatear|Ir al súper|Empujar el carrito|Probarse zapatos|Subirse a la báscula|Ponerse a dieta|Tomarse la temperatura|Poner una inyección|Sacar una muela|
+Doctor|Enfermera|Dentista|Bombero|Policía|Maestro|Chef|Mesero|Taxista|Piloto|Azafata|Astronauta|Soldado|Marinero|Pirata|Vaquero|Ninja|Mago|Payaso|Mimo|Malabarista|Domador de leones|Bailarina|Cantante|Rockero|DJ|Mariachi|Luchador|Boxeador|Futbolista|Árbitro|Portero|Torero|Jinete|Carpintero|Plomero|Electricista|Albañil|Mecánico|Jardinero|Pintor|Fotógrafo|Peluquero|Sastre|Zapatero|Panadero|Carnicero|Taquero|Tortillera|Paletero|Globero|Organillero|Cartero|Repartidor|Cajero|Vendedor|Abogado|Juez|Presidente|Rey|Reina|Princesa|Sacerdote|Monja|Detective|Espía|Ladrón|Científico|Arqueólogo|Veterinario|Granjero|Pescador|Leñador|Minero|Salvavidas|Entrenador|Porrista|Modelo|Actor|Director de orquesta|Reportero|Locutor|Youtuber|Influencer|Programador|Secretaria|Niñera|Guardia de seguridad|Franelero|Viene viene|Lavacoches|Barrendero|Camionero|Maquinista|Cirujano|Psicólogo|Quiropráctico|Masajista|Tatuador|Sonidero|Merolico|Tamalero|Elotero|Bolero|Afilador|Cerrajero|Buzo|Paracaidista|Bruja|Vampiro|Zombi|Momia|Fantasma|Hombre lobo|Sirena|Hada|Duende|Gigante|Robot|Extraterrestre|Esqueleto|Diablo|Ángel|Santa Claus|Los Reyes Magos|El Ratón de los Dientes|La Llorona|El Chupacabras|El Coco|La Catrina|
+Teléfono|Televisión|Computadora|Control remoto|Audífonos|Micrófono|Cámara|Reloj|Despertador|Lentes|Sombrero|Gorra|Bufanda|Guantes|Paraguas|Corbata|Cinturón|Tacones|Chanclas|Botas|Calcetines|Pijama|Traje de baño|Vestido de novia|Anillo|Collar|Mochila|Maleta|Cartera|Llaves|Candado|Tijeras|Martillo|Desarmador|Serrucho|Escalera|Cubeta|Escoba|Trapeador|Aspiradora|Plancha|Lavadora|Licuadora|Microondas|Refrigerador|Estufa|Sartén|Olla|Cuchara|Tenedor|Cuchillo|Vaso|Taza|Botella|Destapador|Abrelatas|Molcajete|Comal|Tortillero|Servilleta|Mantel|Vela|Foco|Lámpara|Ventilador|Aire acondicionado|Espejo|Peine|Cepillo de dientes|Pasta de dientes|Jabón|Champú|Toalla|Papel de baño|Regadera|Tina|Excusado|Cama|Almohada|Cobija|Hamaca|Silla|Mesa|Sillón|Mecedora|Puerta|Ventana|Cortina|Timbre|Elevador|Escaleras eléctricas|Semáforo|Bicicleta|Motocicleta|Patineta|Patines|Coche|Camión|Tren|Metro|Avión|Helicóptero|Barco|Submarino|Cohete|Globo aerostático|Ambulancia|Patrulla|Tractor|Grúa|Trajinera|Vocho|Combi|Bicitaxi|Teleférico|Balón|Raqueta|Bate|Guante de box|Pesas|Trampolín|Columpio|Resbaladilla|Sube y baja|Carrusel|Montaña rusa|Rueda de la fortuna|Carritos chocones|Piñata|Globo|Confeti|Serpentinas|Matraca|Trompo|Yoyo|Balero|Canicas|Papalote|Rompecabezas|Cubo Rubik|Dados|Baraja|Ajedrez|Guitarra|Piano|Batería|Trompeta|Violín|Flauta|Acordeón|Maracas|Pandero|Arpa|Saxofón|Tambor|Libro|Cuaderno|Lápiz|Sacapuntas|Borrador|Regla|Pegamento|Engrapadora|Calculadora|Pizarrón|Mapa|Globo terráqueo|Brújula|Telescopio|Microscopio|Termómetro|Jeringa|Curita|Muletas|Silla de ruedas|Estetoscopio|Imán|Linterna|Encendedor|Cerillos|Extintor|Manguera|Regadera de jardín|Pala|Rastrillo|Carretilla|Podadora|Tienda de campaña|Caña de pescar|Ancla|Salvavidas|Binoculares|Paracaídas|Boomerang|Espada|Escudo|Arco y flecha|Varita mágica|Bola de cristal|Corona|Trofeo|Medalla|Bandera|Billete|Moneda|Alcancía|Tarjeta de crédito|Cajero automático|Buzón|Periódico|Sello|Cinta adhesiva|Dron|Tableta|Cargador|Selfie stick|Robot aspiradora|Código QR|Wifi|
+Taco|Tamal|Pozole|Mole|Enchiladas|Chilaquiles|Quesadilla|Torta|Elote|Esquites|Guacamole|Salsa|Chile|Frijoles|Tortilla|Nopal|Aguacate|Limón|Churros|Pan dulce|Concha|Rosca de Reyes|Pan de muerto|Flan|Gelatina|Paleta de hielo|Raspado|Algodón de azúcar|Palomitas|Chicle|Chocolate|Pastel|Helado|Dona|Galleta|Hot cakes|Pizza|Hamburguesa|Hot dog|Papas fritas|Espagueti|Sushi|Sopa|Huevo estrellado|Tocino|Queso|Pollo rostizado|Pescado|Camarones|Sandía|Piña|Plátano|Mango|Coco|Uvas|Fresa|Manzana|Naranja|Zanahoria|Cebolla|Ajo|Papa|Jitomate|Calabaza|Café|Té|Leche|Malteada|Refresco|Agua de horchata|Agua de jamaica|Cerveza|Michelada|Tequila|Mezcal|Margarita|Champurrado|Atole|Tejuino|Tacos al pastor|Torta ahogada|Cochinita pibil|Chiles en nogada|Sopa de fideo|Gordita|Sope|Tlayuda|Pambazo|Birria|Barbacoa|Carnitas|Chicharrón|Mazapán|Gansito|Tamarindo|Pico de gallo|
+Playa|Montaña|Volcán|Desierto|Selva|Isla|Cueva|Cascada|Río|Lago|Zoológico|Circo|Cine|Teatro|Museo|Biblioteca|Escuela|Hospital|Iglesia|Panteón|Mercado|Tianguis|Supermercado|Gimnasio|Estadio|Alberca|Parque|Feria|Aeropuerto|Estación de tren|Gasolinera|Cárcel|Banco|Hotel|Restaurante|Cantina|Antro|Boda|Funeral|Bautizo|Quinceañera|Posada|Cumpleaños|Carnaval|Navidad|Día de Muertos|Halloween|Año Nuevo|Grito de Independencia|Pirámide|Castillo|Granja|Rancho|Ciudad|Rascacielos|Faro|Puente|Túnel|Laberinto|Casa embrujada|Sala de espera|Salón de clases|Baño público|Peluquería|Lavandería|Taquería|Lucha libre|Rodeo|Corrida de toros|Concierto|Karaoke|Luna|Sol|Estrella fugaz|Arcoíris|Tormenta|Relámpago|Tornado|Terremoto|Nieve|Granizo|Huracán|Eclipse|
+Futbol|Basquetbol|Beisbol|Tenis|Golf|Boxeo|Natación|Clavados|Gimnasia|Karate|Judo|Esgrima|Tiro con arco|Ciclismo|Maratón|Salto de altura|Lanzamiento de jabalina|Halterofilia|Patinaje sobre hielo|Hockey|Futbol americano|Rugby|Surf|Esquí|Snowboard|Paracaidismo|Alpinismo|Equitación|Charrería|Frontón|Voleibol de playa|Fórmula 1|Motocross|Skate|Ajedrez|Futbolito|Pulsos|Carrera de costales|Jalar la cuerda|Sillas musicales|
+Batman|Superman|Hombre Araña|Mujer Maravilla|Iron Man|Hulk|Thor|Capitán América|Darth Vader|Yoda|Harry Potter|Shrek|Mickey Mouse|Pato Donald|Bob Esponja|Pikachu|Mario Bros|Sonic|Homero Simpson|Bart Simpson|Scooby-Doo|Bugs Bunny|Pantera Rosa|Tarzán|King Kong|Godzilla|Drácula|Frankenstein|Sherlock Holmes|James Bond|Indiana Jones|Jack Sparrow|Terminator|Rocky|Rambo|E.T.|Chewbacca|Buzz Lightyear|Woody|Nemo|Simba|Elsa|Blanca Nieves|La Cenicienta|La Bella Durmiente|La Sirenita|Aladino|Pinocho|Peter Pan|Caperucita Roja|Los Tres Cochinitos|Ricitos de Oro|Pulgarcito|El Gato con Botas|Robin Hood|El Zorro|Don Quijote|Cleopatra|Napoleón|Cristóbal Colón|Einstein|Charles Chaplin|Elvis Presley|Michael Jackson|Shakira|Luis Miguel|Juan Gabriel|Vicente Fernández|Selena|Thalía|Bad Bunny|Peso Pluma|Cantinflas|El Chavo del 8|Don Ramón|Quico|La Chilindrina|El Chapulín Colorado|Chabelo|El Santo|Blue Demon|Frida Kahlo|Diego Rivera|Pancho Villa|Emiliano Zapata|Benito Juárez|Miguel Hidalgo|Moctezuma|Pedro Infante|María Félix|Tin Tan|Canelo Álvarez|Checo Pérez|Chicharito|Hugo Sánchez|Messi|Cristiano Ronaldo|Maradona|Pelé|Speedy Gonzales|Coco|Memín Pinguín|Kalimán|Topo Gigio|Cepillín|Titanic|El Rey León|Toy Story|Star Wars|Tiburón|Parque Jurásico|El Exorcista|Los Cazafantasmas|Volver al Futuro|Matrix|Avatar|Rápidos y Furiosos|Misión Imposible|El Señor de los Anillos|Los Juegos del Hambre|Mi Pobre Angelito|La Máscara|Karate Kid|Nosotros los Nobles|Amores Perros|La Rosa de Guadalupe|El Juego del Calamar|La Casa de Papel|Los Simpson|Dragon Ball|Gokú|Los Caballeros del Zodiaco|Pokémon|Minecraft|Fortnite|Pac-Man|Tetris`,
+
+en:`Dog|Cat|Elephant|Giraffe|Monkey|Gorilla|Lion|Tiger|Kangaroo|Penguin|Crocodile|Snake|Turtle|Rabbit|Horse|Cow|Pig|Chicken|Rooster|Duck|Donkey|Sheep|Goat|Mouse|Bat|Owl|Eagle|Parrot|Shark|Dolphin|Whale|Octopus|Crab|Jellyfish|Frog|Mosquito|Bee|Butterfly|Spider|Ant|Cockroach|Scorpion|Camel|Bear|Panda|Koala|Skunk|Squirrel|Wolf|Fox|Deer|Moose|Rhino|Hippo|Zebra|Ostrich|Flamingo|Peacock|Turkey|Chameleon|Iguana|Dinosaur|T-Rex|Unicorn|Dragon|Snail|Worm|Grasshopper|Firefly|Hummingbird|Seal|Walrus|Sloth|Armadillo|Possum|Raccoon|Chihuahua|Bulldog|Bald eagle|Coyote|Buffalo|Pufferfish|Seahorse|Starfish|Bull|Porcupine|Beaver|Otter|Mole|Hamster|Woodpecker|Pigeon|Swan|Pelican|Toucan|Hyena|Cheetah|Llama|Orangutan|Lobster|Alligator|Rattlesnake|Polar bear|Groundhog|Bigfoot|
+Dancing|Singing|Swimming|Running|Jumping|Sleeping|Snoring|Crying|Laughing|Sneezing|Coughing|Yawning|Cooking|Ironing|Sweeping|Mopping|Washing dishes|Doing laundry|Making the bed|Taking a shower|Brushing teeth|Combing hair|Putting on makeup|Shaving|Getting dressed|Driving|Riding a bike|Skating|Skiing|Surfing|Fishing|Hunting|Rock climbing|Scuba diving|Rowing|Boxing|Taking a selfie|Texting|Talking on the phone|Watching TV|Playing video games|Reading|Writing|Painting|Drawing|Playing guitar|Playing drums|Playing piano|Playing trumpet|Playing violin|Clapping|Whistling|Winking|Hugging|Kissing|Flirting|Fighting|Praying|Meditating|Doing yoga|Push-ups|Squats|Lifting weights|Jumping rope|Hide and seek|Flying a kite|Walking the dog|Changing a diaper|Rocking a baby|Mowing the lawn|Watering plants|Changing a lightbulb|Hammering|Sawing|Knitting|Sewing|Milking a cow|Horseback riding|Bull riding|Waiting in line|Hitchhiking|Hailing a cab|Doing the wave|Flipping pancakes|Making popcorn|Peeling a banana|Eating spaghetti|Eating a taco|Eating hot soup|Eating something spicy|Taking a shot|Making a toast|Being hungover|Hiccups|Shivering|Sweating|Being scared|Being in love|Being angry|Fainting|Tripping|Slipping on ice|Tightrope walking|Juggling|Doing magic|Hypnotizing|Walking the runway|Zombie walk|Moonwalk|Twerking|The Macarena|The Robot|The Floss|Line dancing|Square dancing|Salsa dancing|Ballet|Tango|Breakdancing|Tap dancing|Hula hooping|Limbo|Hitting a piñata|Singing Happy Birthday|Blowing out candles|Wrapping a gift|Taking a photo|Blowing a kiss|Proposing|Cannonball|Skydiving|Belly flop|Bungee jumping|Scoring a goal|Slam dunk|Touchdown dance|Hitting a home run|Bowling|Playing pool|Golfing|Playing tennis|Ping pong|Volleyball|Arm wrestling|Thumb war|Rock paper scissors|Playing poker|Flipping a coin|Parallel parking|Changing a tire|Pumping gas|Honking|Taking out the trash|Swatting a fly|Scratching|Playing dead|Throwing a tantrum|Gossiping|Spying|Stealing|Hiding|Surrendering|Tickling|Blowing your nose|Gargling|Biting nails|Cracking knuckles|Stretching|Waking up|Hitting snooze|Running late|Doing homework|Cheating on a test|Raising your hand|Giving a speech|Counting money|Swiping a card|Grocery shopping|Pushing a cart|Trying on shoes|Stepping on a scale|Going on a diet|Getting a shot|Pulling a tooth|Carving a pumpkin|Trick or treating|Building a snowman|Snowball fight|Shoveling snow|Roasting marshmallows|Decorating a tree|Opening presents|Hunting for Easter eggs|Tailgating|Road trip|Karaoke|Air guitar|Photobombing|Mic drop|High five|Fist bump|Eye roll|Facepalm|Dabbing|Sleepwalking|Daydreaming|Eavesdropping|Speed dating|Binge watching|Online shopping|Unboxing|Assembling furniture|Reading a map|Asking for directions|Going through airport security|Riding a roller coaster|Riding a mechanical bull|
+Doctor|Nurse|Dentist|Firefighter|Police officer|Teacher|Chef|Waiter|Taxi driver|Pilot|Flight attendant|Astronaut|Soldier|Sailor|Pirate|Cowboy|Ninja|Magician|Clown|Mime|Juggler|Lion tamer|Ballerina|Singer|Rock star|DJ|Wrestler|Boxer|Quarterback|Referee|Goalie|Jockey|Carpenter|Plumber|Electrician|Construction worker|Mechanic|Gardener|Painter|Photographer|Hairdresser|Barber|Tailor|Baker|Butcher|Bartender|Barista|Mail carrier|Delivery driver|Cashier|Salesperson|Lawyer|Judge|President|King|Queen|Princess|Priest|Nun|Detective|Spy|Burglar|Scientist|Archaeologist|Vet|Farmer|Fisherman|Lumberjack|Miner|Lifeguard|Coach|Cheerleader|Model|Actor|Conductor|News reporter|Weatherman|YouTuber|Influencer|Programmer|Secretary|Babysitter|Security guard|Valet|Janitor|Truck driver|Train conductor|Surgeon|Therapist|Chiropractor|Massage therapist|Tattoo artist|Auctioneer|Ice cream man|Hot dog vendor|Locksmith|Scuba diver|Skydiver|Park ranger|Umpire|Crossing guard|Tour guide|Librarian|Personal trainer|Dog walker|Stunt double|Game show host|Sheriff|Secret Service agent|Witch|Vampire|Zombie|Mummy|Ghost|Werewolf|Mermaid|Fairy|Elf|Leprechaun|Giant|Robot|Alien|Skeleton|Devil|Angel|Santa Claus|Easter Bunny|Tooth Fairy|Grim Reaper|Cupid|Genie|Scarecrow|
+Phone|Television|Laptop|Remote control|Headphones|Microphone|Camera|Watch|Alarm clock|Glasses|Hat|Baseball cap|Scarf|Gloves|Umbrella|Tie|Belt|High heels|Flip-flops|Boots|Socks|Pajamas|Swimsuit|Wedding dress|Ring|Necklace|Backpack|Suitcase|Wallet|Keys|Padlock|Scissors|Hammer|Screwdriver|Saw|Ladder|Bucket|Broom|Mop|Vacuum|Iron|Washing machine|Blender|Microwave|Fridge|Stove|Frying pan|Pot|Spoon|Fork|Knife|Glass|Mug|Bottle|Bottle opener|Can opener|Toaster|Napkin|Candle|Lightbulb|Lamp|Fan|Air conditioner|Mirror|Comb|Toothbrush|Toothpaste|Soap|Shampoo|Towel|Toilet paper|Shower|Bathtub|Toilet|Bed|Pillow|Blanket|Hammock|Chair|Table|Couch|Rocking chair|Door|Window|Curtain|Doorbell|Elevator|Escalator|Traffic light|Bicycle|Motorcycle|Skateboard|Roller skates|Car|Bus|Train|Subway|Airplane|Helicopter|Boat|Submarine|Rocket|Hot air balloon|Ambulance|Police car|Tractor|Tow truck|School bus|Pickup truck|Limo|Fire truck|Golf cart|Ball|Racket|Baseball bat|Boxing glove|Dumbbells|Trampoline|Swing|Slide|Seesaw|Carousel|Roller coaster|Ferris wheel|Bumper cars|Piñata|Balloon|Confetti|Party hat|Spinning top|Yo-yo|Marbles|Kite|Puzzle|Rubik's cube|Dice|Deck of cards|Chess|Guitar|Piano|Drums|Trumpet|Violin|Flute|Accordion|Maracas|Tambourine|Harp|Saxophone|Banjo|Harmonica|Book|Notebook|Pencil|Pencil sharpener|Eraser|Ruler|Glue|Stapler|Calculator|Whiteboard|Map|Globe|Compass|Telescope|Microscope|Thermometer|Syringe|Band-aid|Crutches|Wheelchair|Stethoscope|Magnet|Flashlight|Lighter|Matches|Fire extinguisher|Hose|Watering can|Shovel|Rake|Wheelbarrow|Lawn mower|Tent|Fishing rod|Anchor|Life jacket|Binoculars|Parachute|Boomerang|Sword|Shield|Bow and arrow|Magic wand|Crystal ball|Crown|Trophy|Medal|Flag|Dollar bill|Coin|Piggy bank|Credit card|ATM|Mailbox|Newspaper|Stamp|Duct tape|Drone|Tablet|Charger|Selfie stick|Robot vacuum|QR code|Wi-Fi|Leaf blower|Snow globe|Lava lamp|Disco ball|Jukebox|Vending machine|Slot machine|Parking meter|Fire hydrant|Stop sign|Shopping cart|Lunchbox|Sleeping bag|Surfboard|Frisbee|Hula hoop|Pogo stick|Jack-in-the-box|Teddy bear|Rubber duck|Whoopee cushion|
+Taco|Burrito|Nachos|Guacamole|Salsa|Pizza|Hamburger|Cheeseburger|Hot dog|French fries|Spaghetti|Mac and cheese|Sushi|Soup|Fried egg|Bacon|Cheese|Fried chicken|Chicken wings|Corn dog|BBQ ribs|Steak|Lobster roll|Clam chowder|Grilled cheese|PB&J sandwich|Bagel|Pretzel|Pancakes|Waffles|Cereal|Donut|Cookie|Brownie|Cupcake|Birthday cake|Apple pie|Pumpkin pie|Ice cream|Popsicle|Milkshake|Cotton candy|Popcorn|Bubble gum|Chocolate|Marshmallow|S'mores|Candy cane|Gingerbread man|Jelly beans|Lollipop|Watermelon|Pineapple|Banana|Mango|Coconut|Grapes|Strawberry|Apple|Orange|Lemon|Avocado|Carrot|Onion|Garlic|Potato|Tomato|Pumpkin|Corn on the cob|Pickle|Chili pepper|Coffee|Tea|Milk|Soda|Lemonade|Beer|Wine|Champagne|Margarita|Tequila|Whiskey|Smoothie|Energy drink|Thanksgiving turkey|Mashed potatoes|Meatloaf|Fortune cookie|Ramen|Dumplings|Croissant|Baguette|Fondue|Hot sauce|Ketchup|Maple syrup|
+Beach|Mountain|Volcano|Desert|Jungle|Island|Cave|Waterfall|River|Lake|Zoo|Circus|Movie theater|Theater|Museum|Library|School|Hospital|Church|Cemetery|Farmers market|Supermarket|Gym|Stadium|Swimming pool|Park|County fair|Airport|Train station|Gas station|Jail|Bank|Hotel|Restaurant|Bar|Nightclub|Wedding|Funeral|Baby shower|Prom|Birthday party|Bachelor party|Graduation|Christmas|Halloween|Thanksgiving|New Year's Eve|Fourth of July|Super Bowl|Mardi Gras|Pyramid|Castle|Farm|Ranch|Big city|Skyscraper|Lighthouse|Bridge|Tunnel|Maze|Haunted house|Waiting room|Classroom|Public restroom|Barbershop|Laundromat|Diner|Drive-thru|Casino|Las Vegas|Hollywood|Disneyland|Times Square|Grand Canyon|Statue of Liberty|White House|Mount Rushmore|Golden Gate Bridge|Niagara Falls|Eiffel Tower|Great Wall of China|North Pole|Rodeo|Concert|Yard sale|Summer camp|Road trip|Moon|Sun|Shooting star|Rainbow|Thunderstorm|Lightning|Tornado|Earthquake|Snow|Hail|Hurricane|Eclipse|Blizzard|
+Soccer|Basketball|Baseball|Tennis|Golf|Boxing|Swimming|Diving|Gymnastics|Karate|Judo|Fencing|Archery|Cycling|Marathon|High jump|Javelin throw|Weightlifting|Figure skating|Ice hockey|Football|Rugby|Surfing|Skiing|Snowboarding|Mountain climbing|NASCAR|Formula 1|Motocross|Skateboarding|Cheerleading|Dodgeball|Kickball|Lacrosse|Curling|Bobsled|Sumo wrestling|Pro wrestling|Tug of war|Sack race|Musical chairs|Cornhole|Beer pong|Mini golf|Paintball|Laser tag|Foosball|Darts|
+Batman|Superman|Spider-Man|Wonder Woman|Iron Man|Hulk|Thor|Captain America|Black Panther|Wolverine|Deadpool|Joker|Darth Vader|Yoda|Luke Skywalker|Harry Potter|Shrek|Mickey Mouse|Donald Duck|Goofy|SpongeBob|Pikachu|Mario|Sonic|Homer Simpson|Bart Simpson|Scooby-Doo|Bugs Bunny|Pink Panther|Tarzan|King Kong|Godzilla|Dracula|Frankenstein|Sherlock Holmes|James Bond|Indiana Jones|Jack Sparrow|Terminator|Rocky|Rambo|E.T.|Chewbacca|Buzz Lightyear|Woody|Nemo|Simba|Elsa|Snow White|Cinderella|Sleeping Beauty|The Little Mermaid|Aladdin|Pinocchio|Peter Pan|Little Red Riding Hood|Three Little Pigs|Goldilocks|Humpty Dumpty|Puss in Boots|Robin Hood|Zorro|Cleopatra|Napoleon|Christopher Columbus|George Washington|Abraham Lincoln|Benjamin Franklin|Einstein|Charlie Chaplin|Elvis Presley|Michael Jackson|Marilyn Monroe|Madonna|Beyoncé|Taylor Swift|Lady Gaga|Britney Spears|Shakira|Bad Bunny|Eminem|Snoop Dogg|Elton John|Oprah|The Rock|Arnold Schwarzenegger|Bruce Lee|Jackie Chan|Mr. Bean|Michael Jordan|LeBron James|Tom Brady|Serena Williams|Tiger Woods|Muhammad Ali|Mike Tyson|Usain Bolt|Messi|Cristiano Ronaldo|Hulk Hogan|Willy Wonka|Forrest Gump|The Grinch|Mary Poppins|Dorothy|Wizard of Oz|Winnie the Pooh|Kermit the Frog|Big Bird|Cookie Monster|Barbie|Ken|Popeye|Charlie Brown|Snoopy|Garfield|Tom and Jerry|Road Runner|Fred Flintstone|Optimus Prime|Ninja Turtles|Power Rangers|Ghostbusters|Titanic|The Lion King|Toy Story|Star Wars|Jaws|Jurassic Park|The Exorcist|Back to the Future|The Matrix|Avatar|Fast and Furious|Mission Impossible|Lord of the Rings|The Hunger Games|Home Alone|The Mask|Karate Kid|Top Gun|Grease|Dirty Dancing|Frozen|Finding Nemo|Men in Black|Pirates of the Caribbean|Game of Thrones|Stranger Things|Squid Game|Breaking Bad|Friends|The Office|The Simpsons|Baywatch|Dragon Ball|Pokémon|Minecraft|Fortnite|Pac-Man|Tetris|Zelda|Donkey Kong`
+};
+const LISTS = {};
+for (const k in WORDS) LISTS[k] = [...new Set(WORDS[k].split("|").map(s => s.trim()).filter(Boolean))];
+
+/* =====================================================
+   ESTADO
+   ===================================================== */
+const ROUND_MS = 60000;
+const TILT_TRIGGER = 40;   // grados para marcar
+const TILT_NEUTRAL = 22;   // grados para "volver al centro"
+const $ = id => document.getElementById(id);
+const store = { get(k){ try{ return localStorage.getItem(k) }catch(e){ return null } },
+                set(k,v){ try{ localStorage.setItem(k,v) }catch(e){} } };
+
+let lang = store.get("charales_lang") || ((navigator.language||"es").startsWith("en") ? "en" : "es");
+let state = "menu";          // menu | ready | count | play | results
+let decks = { es:[], en:[] };
+let current = "", results = [];
+let endAt = 0, raf = 0, timers = [];
+let tilt = 0, sensor = false, armed = true, markAt = 0, lastTick = 0;
+let wakeLock = null, audio = null;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+/* =====================================================
+   IDIOMA
+   ===================================================== */
+function applyLang(){
+  const t = T[lang];
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(el => el.textContent = t[el.dataset.t]);
+  $("btnLang").textContent = t.langBtn;
+  $("howList").innerHTML = t.steps.map(s => `<li><span>${s[0]}</span><span>${s[1]}</span></li>`).join("");
+}
+$("btnLang").onclick = () => { lang = lang === "es" ? "en" : "es"; store.set("charales_lang", lang); applyLang(); };
+$("btnHow").onclick = () => $("how").classList.add("on");
+$("btnHowOk").onclick = () => $("how").classList.remove("on");
+$("how").onclick = e => { if (e.target.id === "how") $("how").classList.remove("on"); };
+
+/* =====================================================
+   UTILIDADES
+   ===================================================== */
+function show(id){
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("on", s.id === id));
+}
+function later(fn, ms){ const id = setTimeout(fn, ms); timers.push(id); return id; }
+function clearTimers(){ timers.forEach(clearTimeout); timers = []; cancelAnimationFrame(raf); }
+
+function shuffle(a){
+  for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function drawWord(){
+  if (!decks[lang].length) decks[lang] = shuffle(LISTS[lang].slice());
+  return decks[lang].pop();
+}
+
+function setWord(text){
+  const el = $("word"), box = $("wordBox");
+  el.textContent = text;
+  el.style.whiteSpace = text.includes("\n") ? "pre-line" : "normal";
+  const cs = getComputedStyle(box);
+  const maxW = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const maxH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  let size = Math.floor(maxH * 0.62);
+  el.style.fontSize = size + "px";
+  while (size > 18 && (el.scrollWidth > maxW || el.offsetHeight > maxH)){
+    size = Math.floor(size * 0.92);
+    el.style.fontSize = size + "px";
+  }
+}
+
+function beep(freq, dur, type, when){
+  if (!audio) return;
+  try{
+    const t0 = audio.currentTime + (when || 0);
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = type || "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(audio.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  }catch(e){}
+}
+const sfx = {
+  good(){ beep(660,.12,"triangle"); beep(990,.2,"triangle",.1); },
+  pass(){ beep(300,.22,"sawtooth"); },
+  tick(){ beep(880,.07,"square"); },
+  count(){ beep(520,.12,"sine"); },
+  go(){ beep(1040,.3,"sine"); },
+  end(){ beep(440,.2,"square"); beep(330,.2,"square",.2); beep(220,.5,"square",.4); }
+};
+function buzz(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
+
+async function goFullscreenLandscape(){
+  try{ await document.documentElement.requestFullscreen({ navigationUI:"hide" }); }catch(e){}
+  try{ await screen.orientation.lock("landscape"); }catch(e){}
+  try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(e){}
+}
+function releaseScreen(){
+  try{ screen.orientation.unlock(); }catch(e){}
+  try{ wakeLock && wakeLock.release(); }catch(e){}
+  wakeLock = null;
+}
+
+/* =====================================================
+   SENSOR DE INCLINACIÓN
+   Usamos la gravedad sobre el eje Z (el que "sale" de la pantalla).
+   Celular parado = 0°. Pantalla viendo al techo = +90°. Al piso = -90°.
+   Así funciona igual sin importar hacia qué lado esté acostado.
+   ===================================================== */
+function onMotion(e){
+  const a = e.accelerationIncludingGravity;
+  if (!a || a.z == null) return;
+  const n = Math.hypot(a.x || 0, a.y || 0, a.z);
+  if (n < 5 || n > 15) return;                 // sacudida fuerte: ignorar
+  let t = Math.asin(Math.max(-1, Math.min(1, a.z / n))) * 180 / Math.PI;
+  if (isIOS) t = -t;                           // iOS reporta el signo al revés
+  tilt = sensor ? tilt * 0.55 + t * 0.45 : t;
+  sensor = true;
+  onTilt();
+}
+function onTilt(){
+  if (state === "ready"){
+    if (Math.abs(tilt) < TILT_NEUTRAL + 6) startCountdown();
+  } else if (state === "play"){
+    if (armed){
+      if (tilt > TILT_TRIGGER) mark(true);
+      else if (tilt < -TILT_TRIGGER) mark(false);
+    } else if (Math.abs(tilt) < TILT_NEUTRAL && performance.now() - markAt > 550){
+      nextWord();
+    }
+  }
+}
+async function enableMotion(){
+  try{
+    if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function"){
+      await DeviceMotionEvent.requestPermission();
+    }
+  }catch(e){}
+  // Si lo negaron, simplemente no llegan lecturas y se juega tocando.
+  window.removeEventListener("devicemotion", onMotion);
+  window.addEventListener("devicemotion", onMotion);
+}
+
+/* =====================================================
+   FLUJO DEL JUEGO
+   ===================================================== */
+async function startGame(){
+  try{ audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); }catch(e){}
+  clearTimers();
+  results = []; current = ""; sensor = false; armed = true;
+  state = "ready";
+  $("game").className = "screen on";
+  show("game");
+  $("bar").style.transform = "scaleX(1)"; $("bar").classList.remove("low");
+  $("hint").textContent = "";
+  await Promise.all([enableMotion(), goFullscreenLandscape()]);
+  if (state !== "ready") return;
+  setWord(T[lang].place);
+  // Si en 1.5 s no llegó ninguna lectura, no hay sensor: se juega tocando.
+  later(() => {
+    if (state !== "ready") return;
+    if (!sensor){ $("game").classList.add("touch"); $("hint").textContent = T[lang].tapHint; startCountdown(); }
+  }, 1500);
+  // Por si lo tienen inclinado y nunca lo enderezan: arrancar de todos modos.
+  later(() => { if (state === "ready") startCountdown(); }, 6000);
+}
+
+function startCountdown(){
+  if (state !== "ready") return;
+  state = "count";
+  let n = 3;
+  const step = () => {
+    if (state !== "count") return;
+    if (n === 0){ beginRound(); return; }
+    setWord(String(n)); sfx.count(); n--; later(step, 800);
+  };
+  step();
+}
+
+function beginRound(){
+  state = "play";
+  sfx.go(); buzz(80);
+  endAt = performance.now() + ROUND_MS;
+  lastTick = 6;
+  nextWord();
+  const loop = () => {
+    if (state !== "play") return;
+    const left = endAt - performance.now();
+    $("bar").style.transform = `scaleX(${Math.max(0, left / ROUND_MS)})`;
+    const s = Math.ceil(left / 1000);
+    if (s <= 10) $("bar").classList.add("low");
+    if (s <= 5 && s < lastTick && s > 0){ lastTick = s; sfx.tick(); }
+    if (left <= 0){ endRound(); return; }
+    raf = requestAnimationFrame(loop);
+  };
+  raf = requestAnimationFrame(loop);
+}
+
+function nextWord(){
+  if (state !== "play") return;
+  armed = true;
+  $("game").classList.remove("good", "pass");
+  current = drawWord();
+  setWord(current);
+}
+
+function mark(ok){
+  if (state !== "play" || !armed || !current) return;
+  armed = false; markAt = performance.now();
+  results.push({ w: current, ok });
+  current = "";
+  $("game").classList.add(ok ? "good" : "pass");
+  setWord(T[lang][ok ? "good" : "pass"]);
+  ok ? sfx.good() : sfx.pass();
+  buzz(ok ? [60, 40, 60] : 150);
+  if (!sensor) later(nextWord, 650);        // sin sensor no hay "volver al centro"
+  else later(() => { if (!armed) nextWord(); }, 2500); // red de seguridad
+}
+
+function endRound(){
+  if (current) results.push({ w: current, ok: false });   // la que se quedó en pantalla
+  current = "";
+  state = "results";
+  clearTimers();
+  sfx.end(); buzz([200, 100, 200]);
+  $("game").classList.remove("good", "pass"); $("game").classList.add("end");
+  $("bar").style.transform = "scaleX(0)";
+  setWord(T[lang].timeup);
+  later(showResults, 1600);
+}
+
+function showResults(){
+  releaseScreen();
+  const good = results.filter(r => r.ok).length;
+  $("score").innerHTML = `${good} <small>${T[lang].pts}</small>`;
+  const list = $("list"); list.innerHTML = "";
+  results.forEach(r => {
+    const d = document.createElement("div");
+    d.className = "it " + (r.ok ? "g" : "p");
+    const b = document.createElement("b"); b.textContent = r.ok ? "✓" : "✗";
+    const s = document.createElement("span"); s.textContent = r.w;
+    d.append(b, s); list.append(d);
+  });
+  show("results");
+}
+
+function toMenu(){
+  state = "menu"; clearTimers(); releaseScreen();
+  try{ document.fullscreenElement && document.exitFullscreen(); }catch(e){}
+  show("menu");
+}
+
+$("btnPlay").onclick = startGame;
+$("btnAgain").onclick = startGame;
+$("btnMenu").onclick = toMenu;
+$("quit").onclick = toMenu;
+$("tapGood").onclick = () => mark(true);
+$("tapPass").onclick = () => mark(false);
+addEventListener("keydown", e => {
+  if (state !== "play") return;
+  if (e.key === "ArrowUp" || e.key === "ArrowRight") mark(true);
+  if (e.key === "ArrowDown" || e.key === "ArrowLeft") mark(false);
+});
+addEventListener("resize", () => { if (state === "play" && current) setWord(current); });
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && (state === "play" || state === "count" || state === "ready")){
+    try{ wakeLock = await navigator.wakeLock.request("screen"); }catch(e){}
+  }
+});
+
+applyLang();
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>

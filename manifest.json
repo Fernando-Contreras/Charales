@@ -1,0 +1,14 @@
+{
+  "name": "Charales",
+  "short_name": "Charales",
+  "description": "Charadas en la frente. Inclina arriba si adivinas, abajo para pasar.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b3c5d",
+  "theme_color": "#0b3c5d",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
